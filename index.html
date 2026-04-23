@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculator — SalStack Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #070b17;
+      color: #e2e8f0;
+      font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+    }
+
+    a { color: #06b6d4; text-decoration: none; }
+    a:hover { opacity: 0.75; }
+
+    .back { align-self: flex-start; font-size: 0.78rem; color: #475569; margin-bottom: 20px; }
+    .back:hover { color: #06b6d4; }
+
+    .window {
+      background: #0d1526;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .win-bar {
+      background: #111827;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #22c55e; }
+    .win-title { margin-left: 8px; font-size: 0.75rem; color: #475569; }
+
+    .display {
+      background: #070b17;
+      padding: 20px 20px 12px;
+      text-align: right;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .display-expr { font-size: 0.75rem; color: #334155; min-height: 1.1em; }
+    .display-val  { font-size: 2.2rem; color: #e2e8f0; line-height: 1.1; word-break: break-all; }
+    .display-val.error { color: #f87171; font-size: 1.2rem; }
+
+    .keypad {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .key {
+      background: #0d1526;
+      border: none;
+      color: #e2e8f0;
+      font-family: inherit;
+      font-size: 1.05rem;
+      padding: 18px 0;
+      cursor: pointer;
+      transition: background 0.12s;
+      user-select: none;
+    }
+    .key:hover  { background: #111827; }
+    .key:active { background: #1e293b; }
+
+    .key.op   { color: #06b6d4; }
+    .key.eq   { background: rgba(6,182,212,0.15); color: #06b6d4; }
+    .key.eq:hover { background: rgba(6,182,212,0.25); }
+    .key.clr  { color: #f87171; }
+    .key.span2 { grid-column: span 2; }
+  </style>
+</head>
+<body>
+
+<a href="../../projects.html#playground" class="back">← back to projects</a>
+
+<div class="window">
+  <div class="win-bar">
+    <span class="dot dot-r"></span>
+    <span class="dot dot-y"></span>
+    <span class="dot dot-g"></span>
+    <span class="win-title">calculator.js</span>
+  </div>
+
+  <div class="display">
+    <div class="display-expr" id="expr"></div>
+    <div class="display-val"  id="val">0</div>
+  </div>
+
+  <div class="keypad">
+    <button class="key clr" data-action="clear">AC</button>
+    <button class="key op"  data-action="sign">+/−</button>
+    <button class="key op"  data-action="pct">%</button>
+    <button class="key op"  data-op="/">÷</button>
+
+    <button class="key" data-digit="7">7</button>
+    <button class="key" data-digit="8">8</button>
+    <button class="key" data-digit="9">9</button>
+    <button class="key op" data-op="*">×</button>
+
+    <button class="key" data-digit="4">4</button>
+    <button class="key" data-digit="5">5</button>
+    <button class="key" data-digit="6">6</button>
+    <button class="key op" data-op="-">−</button>
+
+    <button class="key" data-digit="1">1</button>
+    <button class="key" data-digit="2">2</button>
+    <button class="key" data-digit="3">3</button>
+    <button class="key op" data-op="+">+</button>
+
+    <button class="key span2" data-digit="0">0</button>
+    <button class="key" data-action="dot">.</button>
+    <button class="key eq" data-action="eq">=</button>
+  </div>
+</div>
+
+<script>
+const valEl  = document.getElementById('val');
+const exprEl = document.getElementById('expr');
+
+let cur = '0', prev = '', op = null, fresh = false;
+
+function display(v) {
+  valEl.className = 'display-val';
+  valEl.textContent = v.length > 12 ? parseFloat(v).toExponential(4) : v;
+}
+
+function updateExpr() {
+  exprEl.textContent = prev && op ? `${prev} ${opSym(op)}` : '';
+}
+
+function opSym(o) { return {'+':'+','-':'−','*':'×','/':'÷'}[o] || o; }
+
+document.querySelector('.keypad').addEventListener('click', e => {
+  const btn = e.target.closest('.key');
+  if (!btn) return;
+
+  const digit  = btn.dataset.digit;
+  const action = btn.dataset.action;
+  const opKey  = btn.dataset.op;
+
+  if (digit !== undefined) {
+    if (fresh || cur === '0') { cur = digit; fresh = false; }
+    else if (cur.length < 15) cur += digit;
+    display(cur);
+
+  } else if (action === 'dot') {
+    if (fresh) { cur = '0.'; fresh = false; }
+    else if (!cur.includes('.')) cur += '.';
+    display(cur);
+
+  } else if (action === 'clear') {
+    cur = '0'; prev = ''; op = null; fresh = false;
+    display('0'); updateExpr();
+
+  } else if (action === 'sign') {
+    cur = String(parseFloat(cur) * -1);
+    display(cur);
+
+  } else if (action === 'pct') {
+    cur = String(parseFloat(cur) / 100);
+    display(cur);
+
+  } else if (opKey) {
+    if (op && !fresh) {
+      cur = compute(parseFloat(prev), parseFloat(cur), op);
+      display(cur);
+    }
+    prev  = cur;
+    op    = opKey;
+    fresh = true;
+    updateExpr();
+
+  } else if (action === 'eq') {
+    if (!op) return;
+    const result = compute(parseFloat(prev), parseFloat(cur), op);
+    exprEl.textContent = `${prev} ${opSym(op)} ${cur} =`;
+    cur   = result;
+    prev  = '';
+    op    = null;
+    fresh = true;
+    display(cur);
+  }
+});
+
+function compute(a, b, o) {
+  let r;
+  if (o === '+') r = a + b;
+  else if (o === '-') r = a - b;
+  else if (o === '*') r = a * b;
+  else if (o === '/') {
+    if (b === 0) { valEl.className = 'display-val error'; return 'cannot divide by 0'; }
+    r = a / b;
+  }
+  return String(parseFloat(r.toPrecision(12)));
+}
+
+document.addEventListener('keydown', e => {
+  const map = {
+    '0':'0','1':'1','2':'2','3':'3','4':'4','5':'5','6':'6','7':'7','8':'8','9':'9',
+    '.':'.', '+':'+', '-':'-', '*':'*', '/':'/', 'Enter':'eq', 'Backspace':'back', 'Escape':'clear'
+  };
+  const k = map[e.key];
+  if (!k) return;
+  e.preventDefault();
+
+  if (k === 'back') {
+    cur = cur.length > 1 ? cur.slice(0, -1) : '0';
+    display(cur);
+  } else if ('0123456789'.includes(k)) {
+    document.querySelector(`[data-digit="${k}"]`)?.click();
+  } else if (k === '.') {
+    document.querySelector('[data-action="dot"]')?.click();
+  } else if (['+','-','*','/'].includes(k)) {
+    document.querySelector(`[data-op="${k}"]`)?.click();
+  } else if (k === 'eq') {
+    document.querySelector('[data-action="eq"]')?.click();
+  } else if (k === 'clear') {
+    document.querySelector('[data-action="clear"]')?.click();
+  }
+});
+</script>
+</body>
+</html>
